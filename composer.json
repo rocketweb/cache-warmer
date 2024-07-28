@@ -1,0 +1,16 @@
+{
+    "name": "rocketweb/fastly-cache-warmer",
+    "description": "Cache Warmer with a Pre-fetch option to validate Fastly Cache response",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "RocketWeb\\FastlyCacheWarmer\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.1",
+        "ext-curl": "*",
+        "ext-dom": "*"
+    }
+}
