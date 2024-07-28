@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
-namespace RocketWeb\FastlyCacheWarmer;
+namespace RocketWeb\CacheWarmer;
 
-use RocketWeb\FastlyCacheWarmer\Processor\Url;
+use RocketWeb\CacheWarmer\Processor\Url;
 
 class CacheWarmer
 {

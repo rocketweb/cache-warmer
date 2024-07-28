@@ -1,5 +1,5 @@
 <?php declare(strict_types=1);
-namespace RocketWeb\FastlyCacheWarmer\Service;
+namespace RocketWeb\CacheWarmer\Service;
 
 class Curl
 {

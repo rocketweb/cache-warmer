@@ -1,9 +1,9 @@
 <?php declare(strict_types=1);
 
-namespace RocketWeb\FastlyCacheWarmer\Processor;
+namespace RocketWeb\CacheWarmer\Processor;
 
-use RocketWeb\FastlyCacheWarmer\Resource\Page;
-use RocketWeb\FastlyCacheWarmer\Service\Curl;
+use RocketWeb\CacheWarmer\Resource\Page;
+use RocketWeb\CacheWarmer\Service\Curl;
 
 class Url
 {

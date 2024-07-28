@@ -1,11 +1,11 @@
 {
-    "name": "rocketweb/fastly-cache-warmer",
+    "name": "rocketweb/cache-warmer",
     "description": "Cache Warmer with a Pre-fetch option to validate Fastly Cache response",
     "type": "library",
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "RocketWeb\\FastlyCacheWarmer\\": "src/"
+            "RocketWeb\\CacheWarmer\\": "src/"
         }
     },
     "require": {

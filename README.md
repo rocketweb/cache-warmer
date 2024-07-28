@@ -10,7 +10,7 @@ It supports smart caching, so you are not requesting the same Page/Element over 
 ## Installation & Usage
 This library can be installed using composer:
 ```
-composer require rocketweb/fastly-cache-warmer
+composer require rocketweb/cache-warmer
 ```
 
 Once installed, you can load it up using standard PSR-4 call. Example code:
@@ -18,7 +18,7 @@ Once installed, you can load it up using standard PSR-4 call. Example code:
 <?php
 require 'vendor/autoload.php'; // If using directly in a file!
 
-$cacheWarmer = new \RocketWeb\FastlyCacheWarmer\CacheWarmer();
+$cacheWarmer = new \RocketWeb\CacheWarmer\CacheWarmer();
 $cacheWarmer->run(
     'https://domain.com', 
     [
@@ -34,7 +34,7 @@ There are two things that can be configured:
 1. you can set how many concurrent requests you want to execute to the server (applies to both Pages & Elements)
 ```
 $batchSize = 20;
-$cacheWarmer = new \RocketWeb\FastlyCacheWarmer\CacheWarmer($batchSize);
+$cacheWarmer = new \RocketWeb\CacheWarmer\CacheWarmer($batchSize);
 ```
 2. You can bypass the CDN Cache result for certain URLs which will force the Page to be loaded & all Elements to be 
    fetched!

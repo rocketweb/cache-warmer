@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace RocketWeb\FastlyCacheWarmer\Resource;
+namespace RocketWeb\CacheWarmer\Resource;
 
 use DOMDocument;
 
