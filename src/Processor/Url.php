@@ -13,6 +13,8 @@ class Url
 
     private string $baseUrl;
 
+    private array $alternativeBaseUrls = [];
+
     public function __construct(int $batchSize)
     {
         $this->batchSize = $batchSize;
@@ -20,9 +22,11 @@ class Url
         $this->page = new Page();
     }
 
-    public function processUrls(string $baseUrl, array $batches): void
+    public function processUrls(string $baseUrl, array $batches, array $alternativeBaseUrls): void
     {
         $this->baseUrl = $baseUrl;
+        $this->alternativeBaseUrls = $alternativeBaseUrls;
+        $this->alternativeBaseUrls[] = $baseUrl;
         $processFurther = [];
         $batchCounter = 0;
         foreach ($batches as $urlBatch) {
@@ -64,7 +68,7 @@ class Url
                 || count($batches) === $batchCounter && count($processFurther) > 0
             ) {
                 $this->log('Processing batch of URLs ...');
-                $this->processElementsBatch(array_splice($processFurther, 0, $this->batchSize, []), $baseUrl);
+                $this->processElementsBatch(array_splice($processFurther, 0, $this->batchSize, []));
                 $this->log('... Batch completed!');
             }
 
@@ -72,7 +76,7 @@ class Url
 
     }
 
-    public function processElementsBatch(array $urlBatch, string $baseUrl): void
+    public function processElementsBatch(array $urlBatch): void
     {
         $contents = $this->curl->fetchBatch(array_keys($urlBatch));
         $finalElements = [];
@@ -84,9 +88,27 @@ class Url
 
             $this->log('URL: (%s) %s - URL warmed up!', 'processed', $url);
             $elements = $this->page->getElements($content);
-            $elements = array_filter($elements, function ($element) use ($baseUrl) {
-                return str_starts_with($element, $baseUrl);
+            $elements = array_filter($elements, function ($element) {
+                $urlParts = parse_url($element);
+                if (!isset($urlParts['host'])) {
+                    return true;
+                }
+
+                foreach ($this->alternativeBaseUrls as $baseUrl) {
+                    if (str_starts_with($element, $baseUrl)) {
+                        return true;
+                    }
+                }
+
+                return false;
             });
+
+            foreach ($elements as &$element) {
+                $tmp = parse_url($element);
+                if (!isset($tmp['host'])) {
+                    $element = $this->getUrl($this->baseUrl, $element);
+                }
+            }
 
             // We set the value of array to "invalidate" option of the parent URL
             foreach ($elements as $element) {
@@ -140,7 +162,7 @@ class Url
             });
             $skipped = array_keys($skipped);
 
-            array_walk($urlBatch, function ($finalUrl) use ($baseUrl, $skipped) {
+            array_walk($urlBatch, function ($finalUrl) use ($skipped) {
                 $message = in_array($finalUrl, $skipped, true) ?
                     'Element already fetched, skipping!' : 'Element warmed-up!';
                 $status = in_array($finalUrl, $skipped, true) ? 'skipped' : 'processed';

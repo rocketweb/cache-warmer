@@ -1,7 +1,8 @@
 # Cache Warmer (for Fastly CDN)
 
 ## Info
-This library allows for faster Cache Warmup when dealing with CDN (Fastly CDN). It uses HEAD request to check for 
+This library allows for faster Cache Warmup when dealing with CDN (Fastly CDN & Cloudflare supported so far). It uses 
+HEAD request to check for 
 Cache status. If Cache Status is not a HIT, then full page load is executed which is then parsed for css/js/img 
 elements and all those get requested also!
 
@@ -30,7 +31,7 @@ $cacheWarmer->run(
 ```
 
 ## Configuration
-There are two things that can be configured:
+There are few things that can be configured:
 1. you can set how many concurrent requests you want to execute to the server (applies to both Pages & Elements)
 ```
 $batchSize = 20;
@@ -47,4 +48,13 @@ $cacheWarmer->run(
         ...
     ]
 );
+```
+3. You can set up Alternative domains to be used when processing Elements on the Page (for example - your media is 
+   being served from different domain). You need to set that before calling `->run()`:
+```
+$cacheWarmer->setAllowedBaseUrls([
+    'https://cdn.something.net/',
+    'https://media.somethingelse.net/'
+]);
+$cacheWarmer->run( ...
 ```

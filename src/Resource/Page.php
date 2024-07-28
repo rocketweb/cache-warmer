@@ -8,7 +8,8 @@ class Page
 {
     public function isCached(array $headers): bool
     {
-        return isset($headers['x-cache']) && str_contains($headers['x-cache'], 'HIT');
+        return (isset($headers['x-cache']) && str_contains($headers['x-cache'], 'HIT'))
+            || (isset($headers['cf-cache-status']) && str_contains($headers['cf-cache-status'], 'HIT'));
     }
 
     public function getElements(string $content): array
