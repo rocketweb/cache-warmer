@@ -2,9 +2,8 @@
 
 ## Info
 This library allows for faster Cache Warmup when dealing with CDN (Fastly CDN & Cloudflare supported so far). It uses 
-HEAD request to check for 
-Cache status. If Cache Status is not a HIT, then full page load is executed which is then parsed for css/js/img 
-elements and all those get requested also!
+HEAD request to check for Cache status. If Cache Status is not a HIT, then full page load is executed.
+By default, the page is parsed for css/js/img elements and all those get requested also!
 
 It supports smart caching, so you are not requesting the same Page/Element over and over again!
 
@@ -106,5 +105,22 @@ $cacheWarmer->run(
     ],
     [
         'cf-cache-status' => ['HIT', 'DYNAMIC']
-    ]);
+    ]
 ```
+5. You can skip loading Elements (js/img/css) and only warm up the pages listed by specifying the 4th argument of 
+`->run()` method:
+```
+$cacheWarmer->run(
+    'https://domain.com',
+    [
+        '/url1.html',
+        '/url2.html',
+        ...
+    ],
+    [],
+    true
+);
+```
+
+## About
+This library was developed for internal usage.

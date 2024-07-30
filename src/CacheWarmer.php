@@ -13,9 +13,9 @@ class CacheWarmer
     {
         $this->batchSize = $batchSize;
     }
-    public function run(string $baseUrl, array $urls, array $headerConfig = []): void
+    public function run(string $baseUrl, array $urls, array $headerConfig = [], bool $onlyPages = false): void
     {
-        $processor = new Url($this->batchSize, $headerConfig);
+        $processor = new Url($this->batchSize, $headerConfig, $onlyPages);
 
         echo 'Processing URLs - base domain: ' . $processor->getUrl($baseUrl, '') . "\n";
 

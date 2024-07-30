@@ -12,10 +12,12 @@ class Url
     private string $baseUrl;
 
     private array $alternativeBaseUrls = [];
+    private bool $onlyPages;
 
-    public function __construct(int $batchSize, array $headerConfig = [])
+    public function __construct(int $batchSize, array $headerConfig = [], bool $onlyPages = false)
     {
         $this->batchSize = $batchSize;
+        $this->onlyPages = $onlyPages;
 
         $this->curl = new Curl();
         $this->page = new Page($headerConfig);
@@ -66,7 +68,15 @@ class Url
 
             $this->log('URL: (%s) %s - URL warmed up!', 'processed', $url);
 
+            if ($this->onlyPages === true) {
+                continue;
+            }
+
             $finalElements = $this->getFinalElements($content, $finalElements, $urlBatch[$url]);
+        }
+
+        if ($this->onlyPages === true) {
+            return;
         }
 
         $processFurther = [];
