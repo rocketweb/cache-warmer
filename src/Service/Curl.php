@@ -23,12 +23,13 @@ class Curl
             #curl_setopt($curlHandler, CURLINFO_HEADER_OUT, true); // Needed for debugging purposes only
             curl_setopt($curlHandler, CURLOPT_HEADER, true);
             curl_setopt($curlHandler, CURLOPT_NOBODY, true);
-            curl_setopt($curlHandler, CURLOPT_RETURNTRANSFER,true);
+            curl_setopt($curlHandler, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($curlHandler, CURLOPT_FOLLOWLOCATION, true);
             curl_setopt($curlHandler, CURLOPT_TIMEOUT, 10);
-            curl_setopt($curlHandler, CURLOPT_HEADERFUNCTION,
-                function($handler, $header) use (&$headerData)
-                {
+            curl_setopt(
+                $curlHandler,
+                CURLOPT_HEADERFUNCTION,
+                function ($handler, $header) use (&$headerData) {
                     //TODO: Confirm that headers are correct for 301 redirects!
                     $len = strlen($header);
                     $header = explode(':', $header, 2);
@@ -75,7 +76,7 @@ class Curl
 
             curl_setopt($curlHandler, CURLOPT_URL, $url);
             curl_setopt($curlHandler, CURLOPT_HEADER, false);
-            curl_setopt($curlHandler, CURLOPT_RETURNTRANSFER,true);
+            curl_setopt($curlHandler, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($curlHandler, CURLOPT_TIMEOUT, 10);
 
             $handlerData[$url] = $curlHandler;

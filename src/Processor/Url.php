@@ -1,5 +1,4 @@
 <?php declare(strict_types=1);
-
 namespace RocketWeb\CacheWarmer\Processor;
 
 use RocketWeb\CacheWarmer\Resource\Page;
@@ -22,6 +21,9 @@ class Url
         $this->page = new Page($headerConfig);
     }
 
+    /**
+     * @SuppressWarnings(PHPMD.CountInLoopExpression)
+     */
     public function processUrls(string $baseUrl, array $batches, array $alternativeBaseUrls): void
     {
         $this->baseUrl = $baseUrl;
@@ -29,51 +31,27 @@ class Url
         $this->alternativeBaseUrls[] = $baseUrl;
         $processFurther = [];
         $batchCounter = 0;
-        foreach ($batches as $urlBatch) {
 
-            $data = [];
-            foreach ($urlBatch as $url => $value) {
-                if ($value === true) {
-                    $processFurther[$this->getUrl($baseUrl, $url)] = true;
-                    continue;
-                }
-                // If second parameter is bool, then first parameter is URL, otherwise second parameter is URL
-                $url = is_bool($value) ? $url : $value;
-                $data[] = $this->getUrl($baseUrl, $url);
-            }
-            unset($urlBatch);
+        foreach ($batches as $urlBatch) {
+            $urlBatch = $this->prepareUrlBatch($urlBatch, $baseUrl, $processFurther);
 
             /**
              * We prefetch headers (using HEAD) for URLs that were not forced to be invalid. If header test fails,
              * we process it further, otherwise nothing needed - site is cached &
              */
-            $urlHeaders = $this->curl->preFetchBatch($data);
-            foreach ($urlHeaders as $finalUrl => $headers) {
-                if ($headers === null) {
-                    // URL was already checked, skipping
-                    $this->log('URL: (%s) %s - URL already warmed-up, skipping it', 'cached', $finalUrl);
-                    continue;
-                }
-
-                if ($this->page->isCached($headers)) {
-                    $this->log('URL: (%s) %s - URL is cached, skipping warm-up for it', 'cached', $finalUrl);
-                    continue;
-                }
-
-                $processFurther[$finalUrl] = false;
-            }
+            $this->preFetchUrlBatch($urlBatch, $processFurther);
 
             $batchCounter++;
-            while (count($processFurther) >= $this->batchSize
+
+            while (
+                count($processFurther) >= $this->batchSize
                 || count($batches) === $batchCounter && count($processFurther) > 0
             ) {
                 $this->log('Processing batch of URLs ...');
                 $this->processElementsBatch(array_splice($processFurther, 0, $this->batchSize, []));
                 $this->log('... Batch completed!');
             }
-
         }
-
     }
 
     public function processElementsBatch(array $urlBatch): void
@@ -87,33 +65,8 @@ class Url
             }
 
             $this->log('URL: (%s) %s - URL warmed up!', 'processed', $url);
-            $elements = $this->page->getElements($content);
-            $elements = array_filter($elements, function ($element) {
-                $urlParts = parse_url($element);
-                if (!isset($urlParts['host'])) {
-                    return true;
-                }
 
-                foreach ($this->alternativeBaseUrls as $baseUrl) {
-                    if (str_starts_with($element, $baseUrl)) {
-                        return true;
-                    }
-                }
-
-                return false;
-            });
-
-            foreach ($elements as &$element) {
-                $tmp = parse_url($element);
-                if (!isset($tmp['host'])) {
-                    $element = $this->getUrl($this->baseUrl, $element);
-                }
-            }
-
-            // We set the value of array to "invalidate" option of the parent URL
-            foreach ($elements as $element) {
-                $finalElements[$element] = !empty($finalElements[$element]) ?: $urlBatch[$url];
-            }
+            $finalElements = $this->getFinalElements($content, $finalElements, $urlBatch[$url]);
         }
 
         $processFurther = [];
@@ -135,8 +88,94 @@ class Url
         }
 
         $this->log('Processing Elements of the URL batch ...');
-        while (count($elementsForPreFetch) > 0) {
-            $urlHeaders = $this->curl->preFetchBatch(array_splice($elementsForPreFetch, 0, $this->batchSize, []));
+        $this->preFetchElementBatch($elementsForPreFetch, $processFurther);
+        $this->processElements($processFurther);
+    }
+
+    public function getUrl(string $baseUrl, string $url): string
+    {
+        return rtrim($baseUrl, '/') . '/' . ltrim($url, '/');
+    }
+
+    private function log(string $message, ...$arguments): void
+    {
+        $logMessage = sprintf($message . "\n", ...$arguments);
+        echo str_replace(rtrim($this->baseUrl, '/'), '', $logMessage);
+    }
+
+    private function prepareUrlBatch(mixed $urlBatch, string $baseUrl, array &$processFurther): array
+    {
+        $data = [];
+        foreach ($urlBatch as $url => $value) {
+            if ($value === true) {
+                $processFurther[$this->getUrl($baseUrl, $url)] = true;
+                continue;
+            }
+            // If second parameter is bool, then first parameter is URL, otherwise second parameter is URL
+            $url = is_bool($value) ? $url : $value;
+            $data[] = $this->getUrl($baseUrl, $url);
+        }
+
+        return $data;
+    }
+
+    private function preFetchUrlBatch(array $data, array &$processFurther): void
+    {
+        $urlHeaders = $this->curl->preFetchBatch($data);
+        foreach ($urlHeaders as $finalUrl => $headers) {
+            if ($headers === null) {
+                // URL was already checked, skipping
+                $this->log('URL: (%s) %s - URL already warmed-up, skipping it', 'cached', $finalUrl);
+                continue;
+            }
+
+            if ($this->page->isCached($headers)) {
+                $this->log('URL: (%s) %s - URL is cached, skipping warm-up for it', 'cached', $finalUrl);
+                continue;
+            }
+
+            $processFurther[$finalUrl] = false;
+        }
+    }
+
+    private function getFinalElements(mixed $content, array $finalElements, bool $invalidate): array
+    {
+        $elements = $this->page->getElements($content);
+        $elements = array_filter($elements, function ($element) {
+            $urlParts = parse_url($element);
+            if (!isset($urlParts['host'])) {
+                return true;
+            }
+
+            foreach ($this->alternativeBaseUrls as $baseUrl) {
+                if (str_starts_with($element, $baseUrl)) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
+
+        foreach ($elements as &$element) {
+            $tmp = parse_url($element);
+            if (!isset($tmp['host'])) {
+                $element = $this->getUrl($this->baseUrl, $element);
+            }
+        }
+
+        // We set the value of array to "invalidate" option of the parent URL
+        foreach ($elements as $finalElement) {
+            $finalElements[$finalElement] = !empty($finalElements[$finalElement]) ?: $invalidate;
+        }
+
+        return $finalElements;
+    }
+
+    private function preFetchElementBatch(array $elementsForPreFetch, array &$processFurther): void
+    {
+        $batchElements = array_chunk($elementsForPreFetch, $this->batchSize, true);
+        foreach ($batchElements as $batch) {
+            $urlHeaders = $this->curl->preFetchBatch($batch);
             foreach ($urlHeaders as $finalUrl => $headers) {
                 if ($headers === null) {
                     // URL was already checked, skipping
@@ -151,10 +190,11 @@ class Url
 
                 $processFurther[] = $finalUrl;
             }
-
         }
+    }
 
-
+    private function processElements(array $processFurther): void
+    {
         foreach (array_chunk($processFurther, $this->batchSize, true) as $urlBatch) {
             // We don't care about the content here, we are just fetching elements to get loaded into CDN
             $skipped = array_filter($this->curl->fetchBatch($urlBatch), function ($content) {
@@ -171,16 +211,4 @@ class Url
             });
         }
     }
-
-    public function getUrl(string $baseUrl, string $url): string
-    {
-        return rtrim($baseUrl, '/') . '/' . ltrim($url, '/');
-    }
-
-    private function log(string $message, ...$arguments): void
-    {
-        $logMessage = sprintf($message . "\n", ...$arguments);
-        echo str_replace(rtrim($this->baseUrl, '/'), '', $logMessage);
-    }
-
 }

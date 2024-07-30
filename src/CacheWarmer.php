@@ -27,5 +27,4 @@ class CacheWarmer
     {
         $this->baseUrls = $baseUrls;
     }
-
 }

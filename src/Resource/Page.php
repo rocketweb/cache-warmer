@@ -31,6 +31,9 @@ class Page
         return false;
     }
 
+    /**
+     * @SuppressWarnings(PHPMD.ErrorControlOperator)
+     */
     public function getElements(string $content): array
     {
         $dom = new DOMDocument();
@@ -70,7 +73,7 @@ class Page
         }
 
         $srcsets = explode(',', $srcset);
-        $srcsets = array_map(function($data) {
+        $srcsets = array_map(function ($data) {
             $data = array_filter(explode(' ', trim($data)));
             return trim($data[0]);
         }, $srcsets);
