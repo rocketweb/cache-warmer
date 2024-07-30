@@ -29,6 +29,19 @@ $cacheWarmer->run(
     ]
 );
 ```
+The output is echoed directly and contains the following information:
+```
+URL|Element: (cached|processed|skipped) %URL% - %message%
+
+URL|Element => indicates what is being processed.
+  - URL is a Page URL which was provided in the array.
+  - Element is js/css/img information that was parsed out from the Page.
+cached|processed|skipped => indicates the state.
+  - cached - the HEAD request returned the proper Cache Header value
+  - processed - the Cache Header failed, the Page/Element was fetched (loaded)
+  - skipped - the Page/Element was already requested before (duplicate)
+```
+
 
 ## Configuration
 There are few things that can be configured:
@@ -57,4 +70,41 @@ $cacheWarmer->setAllowedBaseUrls([
     'https://media.somethingelse.net/'
 ]);
 $cacheWarmer->run( ...
+```
+4. You can specify custom header & value to be matched against for CDN Caching validation. The validation is done thru 
+   partial match (needle in haystack). You need to pass additional configuration into the `->run()` method:
+```
+$cacheWarmer->run(
+    'https://domain.com',
+    [
+        ... // URLs to check
+    ],
+    [
+         'header_key' => ['value', ...]
+    ]
+);
+```
+
+The configuration gets merged together with default values (that support Fastly & Cloudflare):
+```
+   \RocketWeb\CacheWarmer\Resource\Page
+
+    private const DEFAULT_HEADERS = [
+        'x-cache' => ['HIT'],
+        'cf-cache-status' => ['HIT']
+    ];
+```
+
+For example, if you want to include **DYNAMIC** to be passed as Cached for Cloudflare:
+```
+$cacheWarmer->run(
+    'https://domain.com',
+    [
+        '/url1.html',
+        '/url2.html',
+        ...
+    ],
+    [
+        'cf-cache-status' => ['HIT', 'DYNAMIC']
+    ]);
 ```

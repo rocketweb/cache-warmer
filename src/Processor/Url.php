@@ -10,16 +10,16 @@ class Url
     private Curl $curl;
     private Page $page;
     private int $batchSize;
-
     private string $baseUrl;
 
     private array $alternativeBaseUrls = [];
 
-    public function __construct(int $batchSize)
+    public function __construct(int $batchSize, array $headerConfig = [])
     {
         $this->batchSize = $batchSize;
+
         $this->curl = new Curl();
-        $this->page = new Page();
+        $this->page = new Page($headerConfig);
     }
 
     public function processUrls(string $baseUrl, array $batches, array $alternativeBaseUrls): void
@@ -51,12 +51,12 @@ class Url
             foreach ($urlHeaders as $finalUrl => $headers) {
                 if ($headers === null) {
                     // URL was already checked, skipping
-                    $this->log('(%s) %s - URL already warmed-up, skipping it', 'cached', $finalUrl);
+                    $this->log('URL: (%s) %s - URL already warmed-up, skipping it', 'cached', $finalUrl);
                     continue;
                 }
 
                 if ($this->page->isCached($headers)) {
-                    $this->log('(%s) %s - URL is cached, skipping warm-up for it', 'cached', $finalUrl);
+                    $this->log('URL: (%s) %s - URL is cached, skipping warm-up for it', 'cached', $finalUrl);
                     continue;
                 }
 

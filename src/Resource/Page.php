@@ -6,10 +6,29 @@ use DOMDocument;
 
 class Page
 {
+    private const DEFAULT_HEADERS = [
+        'x-cache' => ['HIT'],
+        'cf-cache-status' => ['HIT']
+    ];
+
+    private array $cacheHeaders;
+    public function __construct(array $headerConfig = [])
+    {
+        $this->cacheHeaders = array_merge(self::DEFAULT_HEADERS, $headerConfig);
+    }
     public function isCached(array $headers): bool
     {
-        return (isset($headers['x-cache']) && str_contains($headers['x-cache'], 'HIT'))
-            || (isset($headers['cf-cache-status']) && str_contains($headers['cf-cache-status'], 'HIT'));
+        foreach ($this->cacheHeaders as $header => $values) {
+            if (isset($headers[$header])) {
+                foreach ($values as $value) {
+                    if (str_contains($headers[$header], $value)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     public function getElements(string $content): array
