@@ -1,7 +1,7 @@
-# Cache Warmer (for Fastly CDN)
+# Cache Warmer (for Fastly, Cloudflare, and Bunny CDN)
 
 ## Info
-This library allows for faster Cache Warmup when dealing with CDN (Fastly CDN & Cloudflare supported so far). It uses 
+This library allows for faster Cache Warmup when dealing with CDN (Fastly, Cloudflare, and Bunny CDN supported). It uses 
 HEAD request to check for 
 Cache status. If Cache Status is not a HIT, then full page load is executed which is then parsed for css/js/img 
 elements and all those get requested also!
@@ -85,13 +85,14 @@ $cacheWarmer->run(
 );
 ```
 
-The configuration gets merged together with default values (that support Fastly & Cloudflare):
+The configuration gets merged together with default values (that support Fastly, Cloudflare, and Bunny CDN):
 ```
    \RocketWeb\CacheWarmer\Resource\Page
 
     private const DEFAULT_HEADERS = [
         'x-cache' => ['HIT'],
-        'cf-cache-status' => ['HIT']
+        'cf-cache-status' => ['HIT'],
+        'cdn-cache' => ['HIT']
     ];
 ```
 
