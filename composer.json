@@ -1,6 +1,6 @@
 {
     "name": "rocketweb/cache-warmer",
-    "description": "Cache Warmer with a Pre-fetch option to validate Fastly Cache response",
+    "description": "Cache warmer with pre-fetch validation for Fastly, Cloudflare, and Bunny CDN cache headers",
     "type": "library",
     "license": "MIT",
     "autoload": {

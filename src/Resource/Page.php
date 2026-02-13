@@ -8,7 +8,8 @@ class Page
 {
     private const DEFAULT_HEADERS = [
         'x-cache' => ['HIT'],
-        'cf-cache-status' => ['HIT']
+        'cf-cache-status' => ['HIT'],
+        'cdn-cache' => ['HIT']
     ];
 
     private array $cacheHeaders;
