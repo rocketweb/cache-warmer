@@ -2,6 +2,7 @@
 
 namespace RocketWeb\CacheWarmer\Resource;
 
+use Dom\HTMLDocument;
 use DOMDocument;
 
 class Page
@@ -31,14 +32,13 @@ class Page
         return false;
     }
 
-    /**
-     * @SuppressWarnings(PHPMD.ErrorControlOperator)
-     */
     public function getElements(string $content): array
     {
-        $dom = new DOMDocument();
-        @$dom->loadHTML($content);
-        $dom->preserveWhiteSpace = false;
+        if ($content === '') {
+            return [];
+        }
+
+        $dom = $this->createDocument($content);
 
         $tags = [
             'script' => ['src'],
@@ -53,17 +53,34 @@ class Page
             foreach ($elements as $element) {
                 $values = [];
                 foreach ($tagAttributes as $attribute) {
+                    $value = $element->getAttribute($attribute) ?? '';
                     if ($attribute == 'srcset') {
-                        $values = array_merge($values, $this->getSrcSet($element->getAttribute('srcset')));
+                        $values = array_merge($values, $this->getSrcSet($value));
                         continue;
                     }
-                    $values[] = $element->getAttribute($attribute);
+                    $values[] = $value;
                 }
                 $finalElements = array_unique(array_merge($finalElements, array_filter(array_map('trim', $values))));
             }
         }
 
         return $finalElements;
+    }
+
+    /**
+     * @SuppressWarnings(PHPMD.ErrorControlOperator)
+     */
+    private function createDocument(string $content): HTMLDocument|DOMDocument
+    {
+        if (class_exists(HTMLDocument::class)) {
+            return HTMLDocument::createFromString($content, LIBXML_NOERROR);
+        }
+
+        $dom = new DOMDocument();
+        @$dom->loadHTML($content);
+        $dom->preserveWhiteSpace = false;
+
+        return $dom;
     }
 
     private function getSrcSet(string $srcset): array

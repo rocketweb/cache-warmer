@@ -1,101 +1,133 @@
 <?php declare(strict_types=1);
 namespace RocketWeb\CacheWarmer\Service;
 
+use CurlHandle;
+use CurlMultiHandle;
+use SplQueue;
+
 class Curl
 {
-    private array $preFetchCache = [];
-    private array $fetchCache = [];
+    private const TIMEOUT = 10;
+    private const CONNECT_TIMEOUT = 5;
+    private const MAX_REDIRECTS = 5;
+    private const SELECT_TIMEOUT = 1.0;
 
-    public function preFetchBatch(array $urls): array
+    private CurlMultiHandle $multiHandle;
+    private SplQueue $priorityQueue;
+    private SplQueue $queue;
+    private array $requests = [];
+    private array $headers = [];
+
+    public function __construct(private readonly int $concurrency)
     {
-        $multiHandler = curl_multi_init();
-        $headerData = [];
-        foreach ($urls as $url) {
-            if (in_array($url, $this->preFetchCache, true)) {
-                $headerData[$url] = null;
-                continue;
-            }
+        $this->multiHandle = curl_multi_init();
+        curl_multi_setopt($this->multiHandle, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
+        curl_multi_setopt($this->multiHandle, CURLMOPT_MAX_HOST_CONNECTIONS, $concurrency);
 
-            $curlHandler = curl_init();
-
-            curl_setopt($curlHandler, CURLOPT_URL, $url);
-            curl_setopt($curlHandler, CURLOPT_CUSTOMREQUEST, 'HEAD');
-            #curl_setopt($curlHandler, CURLINFO_HEADER_OUT, true); // Needed for debugging purposes only
-            curl_setopt($curlHandler, CURLOPT_HEADER, true);
-            curl_setopt($curlHandler, CURLOPT_NOBODY, true);
-            curl_setopt($curlHandler, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($curlHandler, CURLOPT_FOLLOWLOCATION, true);
-            curl_setopt($curlHandler, CURLOPT_TIMEOUT, 10);
-            curl_setopt(
-                $curlHandler,
-                CURLOPT_HEADERFUNCTION,
-                function ($handler, $header) use (&$headerData) {
-                    //TODO: Confirm that headers are correct for 301 redirects!
-                    $len = strlen($header);
-                    $header = explode(':', $header, 2);
-                    if (count($header) < 2) {
-                        return $len;
-                    }
-                    $url = curl_getinfo($handler, CURLINFO_EFFECTIVE_URL);
-
-                    $headerData[$url][strtolower(trim($header[0]))] = trim($header[1]);
-
-                    return $len;
-                }
-            );
-
-            curl_multi_add_handle($multiHandler, $curlHandler);
-        }
-
-        do {
-            curl_multi_exec($multiHandler, $running);
-            curl_multi_select($multiHandler);
-        } while ($running > 0);
-
-        // We already have the headers thru HEADERFUNCTION callback, nothing else to do!
-        curl_multi_close($multiHandler);
-
-        $this->preFetchCache = array_merge($this->preFetchCache, array_keys($headerData));
-
-        return $headerData;
+        $this->priorityQueue = new SplQueue();
+        $this->queue = new SplQueue();
     }
 
-    public function fetchBatch(array $urls): array
+    public function add(string $url, bool $headOnly, bool $keepBody, callable $callback, bool $priority = false): void
     {
-        $handlerData = [];
-        $contentData = [];
-
-        $multiHandler = curl_multi_init();
-
-        foreach ($urls as $url) {
-            if (in_array($url, $this->fetchCache, true)) {
-                $contentData[$url] = null;
-                continue;
-            }
-            $curlHandler = curl_init();
-
-            curl_setopt($curlHandler, CURLOPT_URL, $url);
-            curl_setopt($curlHandler, CURLOPT_HEADER, false);
-            curl_setopt($curlHandler, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($curlHandler, CURLOPT_TIMEOUT, 10);
-
-            $handlerData[$url] = $curlHandler;
-
-            curl_multi_add_handle($multiHandler, $curlHandler);
+        $request = [$url, $headOnly, $keepBody, $callback];
+        if ($priority) {
+            $this->priorityQueue->enqueue($request);
+            return;
         }
 
+        $this->queue->enqueue($request);
+    }
+
+    public function run(): void
+    {
         do {
-            curl_multi_exec($multiHandler, $running);
-            curl_multi_select($multiHandler);
-        } while ($running > 0);
+            $this->fillWindow();
 
-        foreach ($handlerData as $url => $handler) {
-            $contentData[$url] = curL_multi_getcontent($handler);
+            curl_multi_exec($this->multiHandle, $running);
+            while (($info = curl_multi_info_read($this->multiHandle)) !== false) {
+                $this->complete($info['handle'], $info['result']);
+            }
+
+            if ($running > 0 && curl_multi_select($this->multiHandle, self::SELECT_TIMEOUT) === -1) {
+                usleep(1000);
+            }
+        } while ($this->requests !== [] || !$this->priorityQueue->isEmpty() || !$this->queue->isEmpty());
+    }
+
+    private function fillWindow(): void
+    {
+        while (count($this->requests) < $this->concurrency) {
+            $queue = $this->priorityQueue->isEmpty() ? $this->queue : $this->priorityQueue;
+            if ($queue->isEmpty()) {
+                return;
+            }
+
+            $this->start(...$queue->dequeue());
+        }
+    }
+
+    private function start(string $url, bool $headOnly, bool $keepBody, callable $callback): void
+    {
+        $handle = curl_init();
+        $id = spl_object_id($handle);
+        $this->headers[$id] = [];
+
+        curl_setopt_array($handle, [
+            CURLOPT_URL => $url,
+            CURLOPT_NOBODY => $headOnly,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => self::MAX_REDIRECTS,
+            CURLOPT_TIMEOUT => self::TIMEOUT,
+            CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT,
+            CURLOPT_PIPEWAIT => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_HTTP_CONTENT_DECODING => $keepBody,
+            CURLOPT_HEADERFUNCTION => fn (CurlHandle $handle, string $line): int => $this->collectHeader($id, $line),
+        ]);
+
+        if ($keepBody) {
+            curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
+        } else {
+            curl_setopt($handle, CURLOPT_WRITEFUNCTION, fn (CurlHandle $handle, string $data): int => strlen($data));
         }
 
-        curl_multi_close($multiHandler);
-        $this->fetchCache = array_merge($this->fetchCache, array_keys($handlerData));
+        curl_multi_add_handle($this->multiHandle, $handle);
+        $this->requests[$id] = [$handle, $url, $callback];
+    }
 
-        return $contentData;
+    private function collectHeader(int $id, string $header): int
+    {
+        $length = strlen($header);
+        if (str_starts_with($header, 'HTTP/')) {
+            $this->headers[$id] = [];
+            return $length;
+        }
+
+        $parts = explode(':', $header, 2);
+        if (count($parts) === 2) {
+            $this->headers[$id][strtolower(trim($parts[0]))] = trim($parts[1]);
+        }
+
+        return $length;
+    }
+
+    private function complete(CurlHandle $handle, int $result): void
+    {
+        $id = spl_object_id($handle);
+        [, $url, $callback] = $this->requests[$id];
+
+        $response = new Response(
+            $url,
+            (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE),
+            $this->headers[$id],
+            (string)curl_multi_getcontent($handle),
+            $result === CURLE_OK ? '' : curl_strerror($result)
+        );
+
+        curl_multi_remove_handle($this->multiHandle, $handle);
+        unset($this->requests[$id], $this->headers[$id]);
+
+        $callback($response);
     }
 }

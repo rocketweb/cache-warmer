@@ -7,6 +7,13 @@ By default, the page is parsed for css/js/img elements and all those get request
 
 It supports smart caching, so you are not requesting the same Page/Element over and over again!
 
+Requests run in a rolling window: a fixed number of requests is always in flight, a slow response does not block the
+others. Connections are reused (HTTP/2 multiplexing when the server supports it). Every request advertises the same
+`Accept-Encoding` as a browser (br, gzip, ...), so the CDN cache variant real visitors get is the one being warmed.
+
+Requires PHP 8.3+. On PHP 8.4+ pages are parsed with the HTML5 compliant `Dom\HTMLDocument` parser, on PHP 8.3 it falls 
+back to `DOMDocument`.
+
 ## Installation & Usage
 This library can be installed using composer:
 ```
@@ -30,21 +37,24 @@ $cacheWarmer->run(
 ```
 The output is echoed directly and contains the following information:
 ```
-URL|Element: (cached|processed|skipped) %URL% - %message%
+URL|Element: (cached|processed|skipped|failed) %URL% - %message%
 
 URL|Element => indicates what is being processed.
   - URL is a Page URL which was provided in the array.
   - Element is js/css/img information that was parsed out from the Page.
-cached|processed|skipped => indicates the state.
+cached|processed|skipped|failed => indicates the state.
   - cached - the HEAD request returned the proper Cache Header value
   - processed - the Cache Header failed, the Page/Element was fetched (loaded)
   - skipped - the Page/Element was already requested before (duplicate)
+  - failed - the request timed out, failed, or returned an HTTP error (5xx on the HEAD check, 4xx/5xx on the fetch).
+    Failed URLs are not retried and do not stop the run
 ```
 
 
 ## Configuration
 There are few things that can be configured:
-1. you can set how many concurrent requests you want to execute to the server (applies to both Pages & Elements)
+1. you can set how many concurrent requests you want to execute to the server (applies to both Pages & Elements, 
+   default 10)
 ```
 $batchSize = 20;
 $cacheWarmer = new \RocketWeb\CacheWarmer\CacheWarmer($batchSize);
